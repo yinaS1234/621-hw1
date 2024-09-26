@@ -1,0 +1,445 @@
+---
+title: "Data 621 HW1"
+author: "Mohamed Hassan-El Serafi; Leung, Chun Shing; Colella, Keith ; Qiao, Yina; Xu, Eddie"
+
+output:
+  pdf_document:
+    number_sections: true
+  html_notebook: default
+---
+---
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, cache=FALSE, results='hide', message=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, cache=FALSE, results='hide', message=FALSE}
+library(dplyr)
+library(knitr)
+library(random)
+library(corrplot)
+library(PerformanceAnalytics)
+library(psych)
+
+```
+
+# Homework #1
+
+
+
+# DATA EXPLORATION
+```{r}
+# Load data
+baseball.train <- read.csv('https://github.com/moham6839/Data_621_HW1/raw/main/moneyball-training-data.csv')
+baseball.eval <- read.csv('https://github.com/moham6839/Data_621_HW1/raw/main/moneyball-evaluation-data.csv')
+```
+
+```{r}
+
+lm.tr <- lm(baseball.train$TARGET_WINS ~ baseball.train$TEAM_BATTING_H)
+summary(lm.tr)
+
+plot(baseball.train$TARGET_WINS ~ baseball.train$TEAM_BATTING_H,
+      type="p", 
+      col="blue",
+      main=paste('Wins vs TEAM_BATTING_H'),
+      xlab='TEAM_BATTING_H', 
+      ylab="Wins")
+abline(lm.tr, col="red")
+legend("topleft", 
+       c("given data","linear model"),
+       fill=c("blue","red"))
+
+boxplot(baseball.train$TEAM_BATTING_H, 
+      data=baseball.train,
+      main=paste('Box Plot - TEAM_BATTING_H'),
+      xlab='TEAM_BATTING_H')
+
+hist(lm.tr$residuals, freq = FALSE, 
+   main = paste('Residuals Histogram - TEAM_BATTING_H'), 
+   xlab = 'Residuals', 
+   ylab = 'Density')
+lines(density(lm.tr$residuals), col="red")
+lines(seq(-400, 500, by=.5), 
+    dnorm(seq(-400, 500, by=.5),
+          mean(lm.tr$residuals), 
+          sd(lm.tr$residuals)), 
+    col="blue")
+lnames <- c('Empirical density', 'Normal density')
+legend('topleft', lnames, col = c('red','blue'), lty = 1) 
+
+plot(lm.tr$residuals ~ baseball.train$TEAM_BATTING_H,
+      type="p", 
+      col="blue",
+      main='Homoscedasticity or Heteroscedasticity',
+      xlab='TEAM_BATTING_H', 
+      ylab="Fitted Residuals")
+abline(h=0, col="red")
+
+qqnorm(resid(lm.tr))
+qqline(resid(lm.tr), col='red')
+
+
+dim(baseball.train)
+str(baseball.train)
+
+train.summary <- data.frame(unclass(summary(baseball.train[2:17])), 
+                          check.names = FALSE, 
+                          row.names = NULL,
+                          stringsAsFactors = FALSE)
+train.summary
+
+train.summary$TEAM_BATTING_SO[7]
+train.summary$TEAM_BASERUN_SB[7]
+train.summary$TEAM_BASERUN_CS[7]
+train.summary$TEAM_BATTING_HBP[7]
+train.summary$TEAM_PITCHING_SO[7]
+train.summary$TEAM_FIELDING_DP[7]
+
+train.summary$` TARGET_WINS`[1]
+train.summary$TEAM_BATTING_3B[1]
+train.summary$TEAM_BATTING_HR[1]
+train.summary$TEAM_BATTING_BB[1]
+train.summary$TEAM_BATTING_SO[1]
+train.summary$TEAM_BASERUN_SB[1]
+train.summary$TEAM_BASERUN_CS[1]
+train.summary$TEAM_PITCHING_HR[1]
+train.summary$TEAM_PITCHING_BB[1]
+train.summary$TEAM_PITCHING_SO[1]
+
+# Correlation Analysis
+my_matrix <- baseball.train[c(2:17)]
+cor_res <- cor(my_matrix, use = "na.or.complete")
+
+corrplot(cor_res, 
+         type = "upper", 
+         order = "original", 
+         tl.col = "black", 
+         tl.srt = 45, 
+         tl.cex = 0.55)
+
+cor_res.df <- data.frame(cor_res)
+cor_res.df[1]
+
+cor_res.df['TEAM_BATTING_H','TEAM_PITCHING_H']
+cor_res.df['TEAM_BATTING_HR','TEAM_PITCHING_HR']
+cor_res.df['TEAM_BATTING_BB','TEAM_PITCHING_BB']
+cor_res.df['TEAM_BATTING_SO','TEAM_PITCHING_SO']
+```
+
+
+
+
+# Data Preparation
+
+```{r}
+exclude <- c('INDEX', 'TEAM_BATTING_H', 'TEAM_BATTING_HR', 'TEAM_PITCHING_BB', 'TEAM_PITCHING_SO')
+newvars <- names( baseball.train) %in% exclude
+reduced.train <- baseball.train[!newvars]
+
+TEAM_BATTING_SO.p <- round(sum(is.na(reduced.train$TEAM_BATTING_SO))/dim(reduced.train)[1]*100,2)
+TEAM_BASERUN_SB.p <- round(sum(is.na(reduced.train$TEAM_BASERUN_SB))/dim(reduced.train)[1]*100,2)
+TEAM_BASERUN_CS.p <- round(sum(is.na(reduced.train$TEAM_BASERUN_CS))/dim(reduced.train)[1]*100,2)
+TEAM_BATTING_HBP.p <- round(sum(is.na(reduced.train$TEAM_BATTING_HBP))/dim(reduced.train)[1]*100,2)
+TEAM_FIELDING_DP.p <- round(sum(is.na(reduced.train$TEAM_FIELDING_DP))/dim(reduced.train)[1]*100,2)
+
+exclude <- c('TEAM_BATTING_HBP')
+newvars <- names( reduced.train) %in% exclude
+reduced.train <- reduced.train[!newvars] 
+
+# Correlation
+my_matrix1 <- reduced.train
+cor_res1 <- cor(my_matrix1, use = "na.or.complete")
+
+corrplot(cor_res1, 
+         type = "upper", 
+         order = "original", 
+         tl.col = "black", 
+         tl.srt = 45, 
+         tl.cex = 0.55)
+
+cor_res1.df <- data.frame(cor_res1)
+cor_res1.df[1]
+
+cor_res1.df <- cor_res1.df[which(abs(cor_res1.df$TARGET_WINS) > 0.10),]
+cor_res1.df[1]
+
+exclude <- c('TEAM_BATTING_3B', 'TEAM_BATTING_SO', 'TEAM_BASERUN_CS', 'TEAM_FIELDING_DP')
+newvars <- names( reduced.train) %in% exclude
+reduced.train <- reduced.train[!newvars]
+
+# Visualizations 
+par(mfrow=c(3,2)) 
+plot(reduced.train$TEAM_BATTING_2B, reduced.train$TARGET_WINS, ylab='TARGET_WINS', xlab = 'TEAM_BATTING_2B')
+plot(reduced.train$TEAM_BATTING_BB, reduced.train$TARGET_WINS, ylab='TARGET_WINS', xlab = 'TEAM_BATTING_BB')
+plot(reduced.train$TEAM_BASERUN_SB, reduced.train$TARGET_WINS, ylab='TARGET_WINS', xlab = 'TEAM_BASERUN_SB')
+plot(reduced.train$TEAM_PITCHING_H, reduced.train$TARGET_WINS, ylab='TARGET_WINS', xlab = 'TEAM_PITCHING_H')
+plot(reduced.train$TEAM_PITCHING_HR, reduced.train$TARGET_WINS, ylab='TARGET_WINS', xlab = 'TEAM_PITCHING_HR')
+plot(reduced.train$TEAM_FIELDING_E, reduced.train$TARGET_WINS, ylab='TARGET_WINS', xlab = 'TEAM_FIELDING_E')
+
+# Transformations to handle outliers
+par(mfrow=c(3,2)) 
+plot(sqrt(reduced.train$TEAM_BATTING_2B), sqrt(reduced.train$TARGET_WINS), ylab='TARGET_WINS', xlab = 'TEAM_BATTING_2B')
+plot(sqrt(reduced.train$TEAM_BATTING_BB), sqrt(reduced.train$TARGET_WINS), ylab='TARGET_WINS', xlab = 'TEAM_BATTING_BB')
+plot(sqrt(reduced.train$TEAM_BASERUN_SB), sqrt(reduced.train$TARGET_WINS), ylab='TARGET_WINS', xlab = 'TEAM_BASERUN_SB')
+plot(sqrt(reduced.train$TEAM_PITCHING_H), sqrt(reduced.train$TARGET_WINS), ylab='TARGET_WINS', xlab = 'TEAM_PITCHING_H')
+plot(sqrt(reduced.train$TEAM_PITCHING_HR), sqrt(reduced.train$TARGET_WINS), ylab='TARGET_WINS', xlab = 'TEAM_PITCHING_HR')
+plot(sqrt(reduced.train$TEAM_FIELDING_E), sqrt(reduced.train$TARGET_WINS), ylab='TARGET_WINS', xlab = 'TEAM_FIELDING_E')
+
+
+exclude <- c('TEAM_PITCHING_H')
+newvars <- names( reduced.train) %in% exclude
+reduced.train <- reduced.train[!newvars] 
+```
+
+
+# Model Buildings and Refinement
+
+```{r}
+
+raw.lm <- lm(TARGET_WINS ~ . - INDEX,
+             data = baseball.train)
+summary(raw.lm)
+
+par(mfrow=c(2,2)) 
+plot(raw.lm)
+
+model1.lm <- lm(TARGET_WINS ~ .,
+             data = reduced.train)
+summary(model1.lm)
+
+par(mfrow=c(2,2)) 
+plot(model1.lm)
+
+# Refinement of linear model
+reduced.train$TARGET_WINS <- sqrt(baseball.train$TARGET_WINS)
+reduced.train$TEAM_BATTING_2B <- sqrt(baseball.train$TEAM_BATTING_2B)
+reduced.train$TEAM_BATTING_BB <- sqrt(baseball.train$TEAM_BATTING_BB)
+reduced.train$TEAM_BASERUN_SB <- sqrt(baseball.train$TEAM_BASERUN_SB)
+reduced.train$TEAM_FIELDING_E <- sqrt(baseball.train$TEAM_FIELDING_E)
+
+model3.lm <- lm(TARGET_WINS ~ ., data = reduced.train)
+summary(model3.lm)
+
+par(mfrow=c(2,2)) 
+plot(model3.lm)
+
+```
+
+
+# Model Selections and Predictions
+
+```{r}
+IsOutlier <- function(target, variable){      
+  l.mean <- mean(variable, na.rm = TRUE)
+  l.n <- length(variable)  
+  x_minus_xhat_sqrd <- (variable - l.mean)^2
+  l.sum <- sum(x_minus_xhat_sqrd)  
+  leverage_manual <- round(1/l.n + x_minus_xhat_sqrd/l.sum,3)  
+  leverage <- data.frame(leverage = leverage_manual)
+  leverage$is_leverage <- 0
+  leverage$is_leverage[which(leverage$leverage > 4/l.n)] <- 1  
+  leverage.lm <- lm(target ~ variable)  
+  leverage$residuals <- round(leverage.lm$residuals,3)  
+  leverage.sd <- (1/(l.n - 2) * sum(leverage$residuals^2))^(1/2)
+  leverage$r <- round(leverage.lm$residuals / (leverage.sd *(1 - leverage$leverage)^(1/2)),3)  
+  leverage$outlier <- 0
+  leverage$outlier[which(abs(leverage$r) > 2)] <- 1  
+  return(leverage$outlier)
+}
+
+reduced.train$TEAM_BATTING_2B_Outlier <- IsOutlier(reduced.train$TARGET_WINS, 
+                                                   reduced.train$TEAM_BATTING_2B)
+
+reduced.train$TEAM_BATTING_BB_Outlier <- IsOutlier(reduced.train$TARGET_WINS, 
+                                                   reduced.train$TEAM_BATTING_BB)
+
+reduced.train$TEAM_FIELDING_E_Outlier <- IsOutlier(reduced.train$TARGET_WINS, 
+                                                   reduced.train$TEAM_FIELDING_E)
+
+hist(reduced.train$TEAM_BASERUN_SB, 
+     main = 'TEAM_BASERUN_SB', 
+     xlab = 'TEAM_BASERUN_SB')
+
+set.seed(123)
+rand_values <- sample(0:max(reduced.train$TEAM_BASERUN_SB, na.rm = TRUE),
+                      size=sum(is.na(reduced.train$TEAM_BASERUN_SB)), 
+                      replace = TRUE)
+
+reduced.train$TEAM_BASERUN_SB[is.na(reduced.train$TEAM_BASERUN_SB)] <- rand_values
+
+reduced.train$TEAM_BASERUN_SB_Outlier <- IsOutlier(reduced.train$TARGET_WINS, 
+                                                   reduced.train$TEAM_BASERUN_SB)
+
+model4.lm <- lm(TARGET_WINS ~ . ,
+             data = reduced.train)
+
+summary(model4.lm)
+
+par(mfrow=c(2,2)) 
+plot(model4.lm)
+
+exclude <- c('TEAM_FIELDING_E', 'TEAM_FIELDING_E_Outlier', 'TEAM_BATTING_BB_Outlier')
+newvars <- names( reduced.train) %in% exclude
+reduced.train <- reduced.train[!newvars] 
+
+model6.lm <- lm(TARGET_WINS ~ . ,
+             data = reduced.train)
+
+summary(model6.lm)
+
+par(mfrow=c(2,2)) 
+plot(model6.lm)
+
+exclude <- c('TEAM_BATTING_2B_Outlier')
+newvars <- names( reduced.train) %in% exclude
+reduced.train <- reduced.train[!newvars] 
+
+model7.lm <- lm(TARGET_WINS ~ . ,
+             data = reduced.train)
+
+summary(model7.lm)
+
+par(mfrow=c(2,2)) 
+plot(model7.lm)
+
+baseball.train[1211,]
+
+baseball.train[which(baseball.train$TARGET_WINS == 0),]
+
+reduced.train <- subset(reduced.train, TARGET_WINS > 0)
+
+model8.lm <- lm(TARGET_WINS ~ . ,
+             data = reduced.train)
+
+summary(model8.lm)
+
+plot(model8.lm)
+
+myvars <- c("INDEX", "TEAM_BATTING_2B", "TEAM_BATTING_BB", "TEAM_BASERUN_SB","TEAM_PITCHING_HR")
+reduce.predict <- baseball.eval[myvars]
+
+reduce.predict$TEAM_BATTING_2B <- sqrt(reduce.predict$TEAM_BATTING_2B)
+reduce.predict$TEAM_BATTING_BB <- sqrt(reduce.predict$TEAM_BATTING_BB)
+reduce.predict$TEAM_BASERUN_SB <- sqrt(reduce.predict$TEAM_BASERUN_SB)
+
+reduce.predict$TEAM_PITCHING_HR <- sqrt(reduce.predict$TEAM_PITCHING_HR)
+
+reduce.predict$TEAM_BASERUN_SB_Outlier <- 0
+
+reduce.predict$PREDICTED_WINS <- round((predict(model8.lm, newdata=reduce.predict))^2,0)
+summary(reduce.predict$PREDICTED_WINS)
+
+summary(reduce.predict[2:4])
+summary(reduced.train[2:4])
+
+hist(reduce.predict$TEAM_BASERUN_SB, freq = FALSE, 
+   main = paste('Histogram - PREDICT TEAM_BASERUN_SB'), 
+   xlab = 'PREDICT TEAM_BASERUN_SB', 
+   ylab = 'Density')
+lines(density(reduce.predict$TEAM_BASERUN_SB, na.rm = TRUE), col="red")
+lines(seq(-400, 500, by=.5), 
+    dnorm(seq(-400, 500, by=.5),
+          mean(reduce.predict$TEAM_BASERUN_SB, na.rm = TRUE), 
+          sd(reduce.predict$TEAM_BASERUN_SB, na.rm = TRUE)), 
+    col="blue")
+lnames <- c('Empirical density', 'Normal density')
+legend('topright', lnames, col = c('red','blue'), lty = 1) 
+
+hist(reduced.train$TEAM_BASERUN_SB, freq = FALSE, 
+   main = paste('Histogram - TRAIN TEAM_BASERUN_SB'), 
+   xlab = 'TRAIN TEAM_BASERUN_SB', 
+   ylab = 'Density')
+lines(density(reduced.train$TEAM_BASERUN_SB, na.rm = TRUE), col="red")
+lines(seq(-400, 500, by=.5), 
+    dnorm(seq(-400, 500, by=.5),
+          mean(reduced.train$TEAM_BASERUN_SB, na.rm = TRUE), 
+          sd(reduced.train$TEAM_BASERUN_SB, na.rm = TRUE)), 
+    col="blue")
+lnames <- c('Empirical density', 'Normal density')
+legend('topright', lnames, col = c('red','blue'), lty = 1) 
+
+rand_values <- sample(0:max(reduce.predict$TEAM_BASERUN_SB, na.rm = TRUE),
+                      size=sum(is.na(reduce.predict$TEAM_BASERUN_SB)), replace = TRUE)
+
+reduce.predict$TEAM_BASERUN_SB[is.na(reduce.predict$TEAM_BASERUN_SB)] <- rand_values
+
+reduce.predict$PREDICTED_WINS <- round((predict(model8.lm, newdata=reduce.predict))^2,0)
+summary(reduce.predict$PREDICTED_WINS)
+
+reduce.predict1 <- reduce.predict[c('INDEX', 
+                                    'PREDICTED_WINS', 
+                                    'TEAM_BATTING_2B', 
+                                    'TEAM_BATTING_BB',
+                                    'TEAM_BASERUN_SB',
+                                    'TEAM_PITCHING_HR')]
+
+reduce.predict1$PREDICTED_WINS <- sqrt(reduce.predict1$PREDICTED_WINS)
+
+reduce.predict1$TEAM_BASERUN_SB_Outlier <- IsOutlier(reduce.predict1$PREDICTED_WINS, 
+                                                     reduce.predict1$TEAM_BASERUN_SB)
+
+reduce.predict1$FINAL_PREDICTED_WINS <- round((predict(model8.lm, newdata=reduce.predict1))^2,0)
+final.answer <- reduce.predict1[1]
+final.answer$PREDICTED_WINS_NO <- reduce.predict$PREDICTED_WINS
+final.answer$PREDICTED_WINS_WO <- reduce.predict1$FINAL_PREDICTED_WINS
+
+summary(baseball.train$TARGET_WINS)
+summary(final.answer[2:3])
+
+hist(baseball.train$TARGET_WINS, freq = FALSE, 
+   main = paste('Histogram - TRAINING TARGET_WINS'), 
+   xlab = 'TRAINING TARGET_WINS', 
+   ylab = 'Density')
+lines(density(baseball.train$TARGET_WINS, na.rm = TRUE), col="red")
+lines(seq(-400, 500, by=.5), 
+    dnorm(seq(-400, 500, by=.5),
+          mean(baseball.train$TARGET_WINS, na.rm = TRUE), 
+          sd(baseball.train$TARGET_WINS, na.rm = TRUE)), 
+    col="blue")
+lnames <- c('Empirical density', 'Normal density')
+legend('topright', lnames, col = c('red','blue'), lty = 1) 
+
+hist(final.answer$PREDICTED_WINS_NO, freq = FALSE, 
+   main = paste('Histogram - PREDICTED TARGET_WINS N-O'), 
+   xlab = 'PREDICTED TARGET_WINS N-O', 
+   ylab = 'Density')
+lines(density(final.answer$PREDICTED_WINS_NO, na.rm = TRUE), col="red")
+lines(seq(-400, 500, by=.5), 
+    dnorm(seq(-400, 500, by=.5),
+          mean(final.answer$PREDICTED_WINS_NO, na.rm = TRUE), 
+          sd(final.answer$PREDICTED_WINS_NO, na.rm = TRUE)), 
+    col="blue")
+lnames <- c('Empirical density', 'Normal density')
+legend('topleft', lnames, col = c('red','blue'), lty = 1) 
+
+hist(final.answer$PREDICTED_WINS_WO, freq = FALSE, 
+   main = paste('Histogram - PREDICTED TARGET_WINS W-O'), 
+   xlab = 'PREDICTED TARGET_WINS W-O', 
+   ylab = 'Density')
+lines(density(final.answer$PREDICTED_WINS_WO, na.rm = TRUE), col="red")
+lines(seq(-400, 500, by=.5), 
+    dnorm(seq(-400, 500, by=.5),
+          mean(final.answer$PREDICTED_WINS_WO, na.rm = TRUE), 
+          sd(final.answer$PREDICTED_WINS_WO, na.rm = TRUE)), 
+    col="blue")
+lnames <- c('Empirical density', 'Normal density')
+legend('topleft', lnames, col = c('red','blue'), lty = 1) 
+
+baseball.eval$TARGET_WINS <- final.answer$PREDICTED_WINS_WO
+
+#write.csv(baseball.eval, file = "predictions.csv",row.names=FALSE)
+
+baseball.eval[c('INDEX','TARGET_WINS')]
+
+```
+
+# Appendix
+ link to R code here: 
+
+ 
+
+
